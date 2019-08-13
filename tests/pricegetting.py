@@ -85,8 +85,9 @@ product_list = [
     "https://www.amazon.de/gp/product/B07G9V43VR/ref=ppx_yo_dt_b_asin_title_o03_s00?ie=UTF8&psc=1"   
 ]
 
-while(True):
-    print(50*"-" + "\n Getting all the prices\n" + 50*"-")
-    for product in product_list:
-        print(get_product_details(product))
-    time.sleep(60)
+# while(True):
+    # time.sleep(60)
+print(50*"-" + "\n Getting all the prices\n" + 50*"-")
+for product in product_list:
+    print(get_product_details(product))
+    
