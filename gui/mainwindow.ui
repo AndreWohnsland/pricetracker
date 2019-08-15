@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>524</width>
-    <height>319</height>
+    <height>346</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -107,7 +107,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Product  URL:</string>
+           <string>Product URL:</string>
           </property>
          </widget>
         </item>
@@ -152,21 +152,21 @@
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="PB_enter">
+          <property name="font">
+           <font>
+            <pointsize>10</pointsize>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Enter</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <layout class="QHBoxLayout" name="horizontalLayout">
-          <item>
-           <widget class="QPushButton" name="PB_enter">
-            <property name="font">
-             <font>
-              <pointsize>10</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Enter</string>
-            </property>
-           </widget>
-          </item>
           <item>
            <widget class="QPushButton" name="PB_clear">
             <property name="font">
@@ -178,6 +178,20 @@
             </property>
             <property name="text">
              <string>Clear</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="PB_change">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Change</string>
             </property>
            </widget>
           </item>
@@ -212,7 +226,22 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuOptions">
+    <property name="title">
+     <string>Options</string>
+    </property>
+    <addaction name="action_agent"/>
+   </widget>
+   <addaction name="menuOptions"/>
   </widget>
+  <action name="action_agent">
+   <property name="text">
+    <string>select User Agent</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

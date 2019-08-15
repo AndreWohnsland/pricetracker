@@ -57,7 +57,7 @@ def get_product_details(url):
         dict: Details of the scraped product
     """
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36"
     }
     details = {"name": "", "price": 0, "deal": True, "url": ""}
     _url = extract_url(url)
@@ -82,7 +82,8 @@ def get_product_details(url):
 product_list = [
     "https://www.amazon.de/Raspberry-1373331-Pi-Modell-Mainboard/dp/B07BDR5PDW/ref=sr_1_3?__mk_de_DE=%C3%85M%C3%85%C5%BD%C3%95%C3%91&keywords=raspberyy+pi&qid=1564919205&s=gateway&sr=8-3",
     "https://www.amazon.de/Kuman-Raspberry-Touchscreen-Resolution-Protective/dp/B07D4FHBNW/ref=sr_1_7?__mk_de_DE=%C3%85M%C3%85%C5%BD%C3%95%C3%91&keywords=raspberry+pi+touch&qid=1564920076&s=gateway&sr=8-7",
-    "https://www.amazon.de/gp/product/B07G9V43VR/ref=ppx_yo_dt_b_asin_title_o03_s00?ie=UTF8&psc=1"   
+    "https://www.amazon.de/gp/product/B07G9V43VR/ref=ppx_yo_dt_b_asin_title_o03_s00?ie=UTF8&psc=1,",
+    "https://www.amazon.de/offizielles-Geh%C3%A4use-Raspberry-Himbeer-wei%C3%9F/dp/B01CCPKCSK/ref=pd_bxgy_147_img_3/261-3406078-0384204?_encoding=UTF8&pd_rd_i=B01CCPKCSK&pd_rd_r=59876f41-8349-4a8f-9d18-ac448cafb876&pd_rd_w=9jKH0&pd_rd_wg=tBMOw&pf_rd_p=98c98f04-e797-4e4b-a352-48f7266a41af&pf_rd_r=CBN0CW3TJAWSVPWSMBQX&psc=1&refRID=CBN0CW3TJAWSVPWSMBQX"   
 ]
 
 # while(True):
