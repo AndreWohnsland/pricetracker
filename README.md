@@ -12,7 +12,7 @@ A Python and Qt App which lets you track various Amazon Products over time, disp
 - Matplotlib 3.1
 - numpy
 ```
-The packages can usually be installed from Pypi with the `pip install 'packagename'` or your system according command.
+The packages can usually be installed from PyPi with the `pip install 'packagename'` or your system according command.
 
 ## Features
 
@@ -24,7 +24,7 @@ This app gives you the possibility to enter your short name for the product and 
 
 ## Setting some options
 
-The program is used for german (.de) amazon and therefore also use a dot for a thousand separator as well as a comma for decimal separator. If your country specific separation differs you can change this in the `setup_mainwindow.py`file:
+The program is used for german (.de) Amazon and therefore also uses a dot for a thousand separator as well as a comma for decimal separator. If your country specific separation differs you can change this in the `setup_mainwindow.py`file:
 
 ```python
 price = price.replace(".", "") # Change here the thousand separator for your country
@@ -62,4 +62,4 @@ if url == "":
 	details = None
 ```
 
-In addition, you need to set your User-Agent once for your program. You can Google "My User Agent" to get it. Simply got to `Options>select User Agent` to set your User-Agent for the program. 
+In addition, you need to set your User-Agent once for your program. You can Google "My User Agent" to get it. Simply go to `Options>select User Agent` to set your User-Agent for the program. 
