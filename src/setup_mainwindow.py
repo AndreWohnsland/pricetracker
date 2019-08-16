@@ -269,8 +269,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.prodia.setValue((step+1)/len(pricechecks)*100)
                 qApp.processEvents()
             # at the end of the successfull process, enters the new timestamp
-            timestamp = now_date.strftime('%Y-%m-%d %H:%M:%S')
-            self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)",(timestamp,))
+            if not oneproduct:
+                timestamp = now_date.strftime('%Y-%m-%d %H:%M:%S')
+                self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)",(timestamp,))
             self.prodia.close()
             # if there were some problems inform the user
             if len(cannot_write)>0:
@@ -282,7 +283,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """Updates the Price for the selected product. """
         if self.LW_products.selectedItems():
             productlink = self.queryDB("SELECT Link FROM Tracklist WHERE ID = ?", (self.id,))[0][0]
-            self.dayly_check(True, [(productlink, self.id)])
+            self.dayly_check(True, [(productlink, self.id, "single product")])
         else:
             self.dialogbox("No product was selected to get the new price from.", "No Product Selected", parent=self)
 
