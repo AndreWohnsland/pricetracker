@@ -231,6 +231,10 @@
      <string>Options</string>
     </property>
     <addaction name="action_agent"/>
+    <addaction name="separator"/>
+    <addaction name="action_fetch_price"/>
+    <addaction name="separator"/>
+    <addaction name="action_exit"/>
    </widget>
    <addaction name="menuOptions"/>
   </widget>
@@ -240,6 +244,22 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="action_fetch_price">
+   <property name="text">
+    <string>fetch price for product</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
+   </property>
+  </action>
+  <action name="action_exit">
+   <property name="text">
+    <string>Exit program</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+X</string>
    </property>
   </action>
  </widget>

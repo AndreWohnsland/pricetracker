@@ -52,12 +52,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # connect the action buttons
         self.action_agent.triggered.connect(self.call_user_agent)
+        self.action_exit.triggered.connect(lambda: self.close())
+        self.action_fetch_price.triggered.connect(self.fetch_price_singleproduct)
 
         # insert the data into the LW
         self.load_listentries()
-
-        # Check if the prices where get within the last half day
-        self.dayly_check()
 
     def enter_data(self, change=False):
         """Checks and enters the data into the db. """
@@ -138,7 +137,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 y_values.append(valuepair[0])
             # Calls a new window, which shows the graph
             productname = self.queryDB("SELECT Name From Tracklist WHERE ID = ?", (self.id,))[0][0]
-            self.gw = GraphWindow(self, [x_values, y_values], productname)
+            self.gw = GraphWindow(self, x_values, y_values, productname)
             self.gw.show()
         else:
             self.dialogbox("Please select a product to plot the price over the time.", "No Product Selected")
@@ -193,6 +192,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
             float: converted price
         """
+        price = price.replace(".", "")
         price = price.replace(",", ".")
         converted_price = float(re.sub(r"[^\d.]", "", price))
 
@@ -230,8 +230,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return None
         return details
 
-    def dayly_check(self):
-        """Checks periodically if the prices where fetched within the last 12 hours, else fetch all the prices. """
+    def dayly_check(self, oneproduct=False, oneproduct_details=[]):
+        """Checks periodically if the prices where fetched within the last 12 hours, else fetch all the prices. 
+        
+        Args:
+            oneproduct (bool, optional): Set to true if only the selected Product shall be updated. Defaults to False.
+            oneproduct_details (list, optional): List of Tuples for the productdetails, consists of the Link and the ID. Defaults to [].
+        """
         last_date = self.queryDB("SELECT Date FROM Timestamps WHERE Number = (SELECT MAX(Number) FROM Timestamps)")
         now_date = datetime.datetime.now()
         # when no entry is existing, always set time difference greater than a day
@@ -243,23 +248,43 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             delta_time = 100000
         # if the difference is greater then half a day, fetch all the prices.
-        if delta_time >= 43000:
+        if delta_time >= 43000 or oneproduct:
+            self.prodia = QProgressDialog("Check of the prices, please wait untill the process is finished.", None, 0, 100, self)
+            self.prodia.show()
+            self.prodia.setWindowTitle("Getting Todays Prices")
+            self.prodia.setValue(0)
+            qApp.processEvents()
             cannot_write = []
-            pricechecks = self.queryDB("SELECT Link, ID, Name FROM Tracklist WHERE Active = 1")
-            for product in pricechecks:
+            if oneproduct:
+                pricechecks = oneproduct_details
+            else:
+                pricechecks = self.queryDB("SELECT Link, ID, Name FROM Tracklist WHERE Active = 1")
+            for step, product in enumerate(pricechecks):
                 productinfo = self.get_product_details(product[0])
                 if productinfo is not None:
                     self.queryDB("INSERT OR IGNORE INTO Pricetracks(ID, Price, Date) VALUES(?,?,?)",(product[1], productinfo["price"], datetime.datetime.strftime(now_date, '%Y-%m-%d')))
                 else:
                     # generate a list of failed products
                     cannot_write.append(product[2])
+                self.prodia.setValue((step+1)/len(pricechecks)*100)
+                qApp.processEvents()
             # at the end of the successfull process, enters the new timestamp
             timestamp = now_date.strftime('%Y-%m-%d %H:%M:%S')
             self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)",(timestamp,))
+            self.prodia.close()
             # if there were some problems inform the user
             if len(cannot_write)>0:
                 errorstring = ', '.join(cannot_write)
-                dialogbox(f'At least for one product, it was not possible to get the price. The products are: {errorstring}. Please check those Links. In case all products failed, check your user-agent and internet connecton!', 'Error while fetching the prices')
+                self.dialogbox(f'At least for one product, it was not possible to get the price. The products are: {errorstring}. Please check those Links. In case all products failed, check your user-agent and internet connecton!', 'Error while fetching the prices')
+        # self.long_task()
+
+    def fetch_price_singleproduct(self):
+        """Updates the Price for the selected product. """
+        if self.LW_products.selectedItems():
+            productlink = self.queryDB("SELECT Link FROM Tracklist WHERE ID = ?", (self.id,))[0][0]
+            self.dayly_check(True, [(productlink, self.id)])
+        else:
+            self.dialogbox("No product was selected to get the new price from.", "No Product Selected", parent=self)
 
     def dialogbox(self, textstring, windowtitle="Message", boxtype="standard", okstring="OK", cancelstring="Cancel", parent=None):
         """The default messagebox for the Maker. Uses a QMessageBox with OK-Button 
@@ -345,6 +370,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 config.write(configfile)
         self.user_agent = config["properties"]["useragent"]
 
+    def long_task(self):
+        self.prodia = QProgressDialog("Daily check of the prices, please wait till it's finished.", None, 0, 100, self)
+        self.prodia.show()
+        qApp.processEvents()
+        for x in range(0, 5):
+            self.prodia.setValue(x/5*100)
+            qApp.processEvents()
+            print(f"step: {x+1}")
+            time.sleep(1)
+        self.prodia.close()
+
 class GraphWindow(QDialog):
     """Opens up a window where the the top five useres (highes quantity) are shown.
 
@@ -352,7 +388,7 @@ class GraphWindow(QDialog):
         plotvalues (list): The x and y values for the plot as as list of lists
         plotname (str): The name for the prodcut
     """
-    def __init__(self, parent, plotvalues=None, plotname=""):
+    def __init__(self, parent, x=None, y=None, plotname=""):
         """ Generates the window and plots the diagram. """
         super(GraphWindow, self).__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -393,8 +429,17 @@ class GraphWindow(QDialog):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         # generates the grap
-        print(plotvalues[0], plotvalues[1])
-        ax.plot(plotvalues[0], plotvalues[1], 'x-')
+        # print(x, y)
+        y_mean = np.mean(y)
+        y_m = [y_mean for val in y]
+        checker1 = [0 if a>b else 1 for a,b in zip(y, y_m)]
+        checker2 = [0 if a<b else 1 for a,b in zip(y, y_m)]
+        ax.plot(x, y, '+-', linewidth=3, markersize=10)
+        ax.plot(x, y_m, linestyle="-.", c='k')
+        if len(x)>1:
+            ax.fill_between(x, y, y_m, color='g', alpha=0.2, where=checker1, interpolate=True)
+            ax.fill_between(x, y, y_m, color='r', alpha=0.2, where=checker2, interpolate=True)
+            ax.set_xlim(min(x), max(x))
         ax.yaxis.grid(linestyle='--', color='k')
         plt.tight_layout()
         # refresh canvas

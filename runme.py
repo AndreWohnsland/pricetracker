@@ -1,7 +1,7 @@
 import sys
 import os
 
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, qApp
 
 from src.setup_mainwindow import MainWindow
 
@@ -12,4 +12,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv) 
     w = MainWindow(db_path=db_path)
     w.show()
-    sys.exit(app.exec_())
+    qApp.processEvents()
+    # Check if the prices where get within the last half day
+    w.dayly_check()
+    ret = app.exec_()
+    sys.exit(ret)

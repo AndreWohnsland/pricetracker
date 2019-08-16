@@ -120,7 +120,15 @@ class Ui_MainWindow(object):
         MainWindow.setMenuBar(self.menubar)
         self.action_agent = QtWidgets.QAction(MainWindow)
         self.action_agent.setObjectName("action_agent")
+        self.action_fetch_price = QtWidgets.QAction(MainWindow)
+        self.action_fetch_price.setObjectName("action_fetch_price")
+        self.action_exit = QtWidgets.QAction(MainWindow)
+        self.action_exit.setObjectName("action_exit")
         self.menuOptions.addAction(self.action_agent)
+        self.menuOptions.addSeparator()
+        self.menuOptions.addAction(self.action_fetch_price)
+        self.menuOptions.addSeparator()
+        self.menuOptions.addAction(self.action_exit)
         self.menubar.addAction(self.menuOptions.menuAction())
 
         self.retranslateUi(MainWindow)
@@ -141,6 +149,10 @@ class Ui_MainWindow(object):
         self.menuOptions.setTitle(_translate("MainWindow", "Options"))
         self.action_agent.setText(_translate("MainWindow", "select User Agent"))
         self.action_agent.setShortcut(_translate("MainWindow", "Ctrl+O"))
+        self.action_fetch_price.setText(_translate("MainWindow", "fetch price for product"))
+        self.action_fetch_price.setShortcut(_translate("MainWindow", "Ctrl+F"))
+        self.action_exit.setText(_translate("MainWindow", "Exit program"))
+        self.action_exit.setShortcut(_translate("MainWindow", "Ctrl+X"))
 
 
 if __name__ == "__main__":
