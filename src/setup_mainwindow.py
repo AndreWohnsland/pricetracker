@@ -6,6 +6,8 @@ import re
 import time
 import datetime
 import configparser
+import lox
+import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -39,14 +41,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.read_config()
 
         # optical features
-        self.setWindowIcon(QIcon('gui/pictures/dollar.png'))
+        self.setWindowIcon(QIcon("gui/pictures/dollar.png"))
 
         # connection of all Buttons
         self.PB_enter.clicked.connect(lambda: self.enter_data(change=False))
         self.PB_clear.clicked.connect(self.clear_entries)
         self.PB_change.clicked.connect(lambda: self.enter_data(change=True))
         self.PB_plot.clicked.connect(self.plot_price)
-        
+
         # connects the LW to the function
         self.LW_products.itemClicked.connect(self.display_lw_item)
 
@@ -54,6 +56,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.action_agent.triggered.connect(self.call_user_agent)
         self.action_exit.triggered.connect(lambda: self.close())
         self.action_fetch_price.triggered.connect(self.fetch_price_singleproduct)
+
+        # generates the threadding for later fetching data
+        self.threadpool = QThreadPool()
 
         # insert the data into the LW
         self.load_listentries()
@@ -69,9 +74,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 validchecker = False
         # checks if this link already exists
         if validchecker and not change:
-            existing_entry = self.queryDB("SELECT COUNT(*) FROM Tracklist WHERE Link = ?", (self.LE_url.text(),))[0][0]
+            existing_entry = self.queryDB(
+                "SELECT COUNT(*) FROM Tracklist WHERE Link = ?", (self.LE_url.text(),)
+            )[0][0]
             if existing_entry:
-                self.dialogbox("This product Link is already existing in the database!", "Existing Product", parent=self)
+                self.dialogbox(
+                    "This product Link is already existing in the database!", "Existing Product", parent=self
+                )
                 validchecker = False
         if validchecker:
             productname = self.LE_name.text()
@@ -82,13 +91,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # checks if the link is an amzon link
             shortlink = self.extract_url(productlink)
             if shortlink is not None and change:
-                self.queryDB("UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ? WHERE ID = ?", (productname, productlink, shortlink, trackproduct, self.id))
+                self.queryDB(
+                    "UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ? WHERE ID = ?",
+                    (productname, productlink, shortlink, trackproduct, self.id),
+                )
                 self.LW_products.currentItem().setText(productname)
                 self.clear_entries()
-                self.dialogbox("Data was updagted into the Database successfully", "Data Updated", parent=self)
+                self.dialogbox(
+                    "Data was updagted into the Database successfully", "Data Updated", parent=self
+                )
             elif shortlink is not None:
                 # enters the data into the DB
-                self.queryDB("INSERT OR IGNORE INTO Tracklist(Name, Link, Shortlink, Active) VALUES(?,?,?,?)", (productname, productlink, shortlink, trackproduct))
+                self.queryDB(
+                    "INSERT OR IGNORE INTO Tracklist(Name, Link, Shortlink, Active) VALUES(?,?,?,?)",
+                    (productname, productlink, shortlink, trackproduct),
+                )
                 new_id = self.queryDB("SELECT ID FROM Tracklist WHERE Name = ?", (productname,))[0][0]
                 item = QListWidgetItem(str(productname), self.LW_products)
                 item.setData(Qt.UserRole, new_id)
@@ -114,7 +131,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item = QListWidgetItem(str(product[0]), self.LW_products)
             # stores the id as the UserRole index
             item.setData(Qt.UserRole, product[1])
-    
+
     def display_lw_item(self):
         self.id = self.LW_products.currentItem().data(Qt.UserRole)
         entries = self.queryDB("SELECT Name, Link, Active FROM Tracklist WHERE ID = ?", (self.id,))[0]
@@ -133,7 +150,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             x_values = []
             y_values = []
             for valuepair in pricetable:
-                x_values.append(datetime.datetime.strptime(valuepair[1], '%Y-%m-%d'))
+                x_values.append(datetime.datetime.strptime(valuepair[1], "%Y-%m-%d"))
                 y_values.append(valuepair[0])
             # Calls a new window, which shows the graph
             productname = self.queryDB("SELECT Name From Tracklist WHERE ID = ?", (self.id,))[0][0]
@@ -154,7 +171,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         for lineedit, missingval in zip(lineedits, missingvals):
             if lineedit.text() == "":
-                self.dialogbox(f"The value for {missingval} is missing!", windowtitle="Missing value!", parent=self)
+                self.dialogbox(
+                    f"The value for {missingval} is missing!", windowtitle="Missing value!", parent=self
+                )
                 return False
         return True
 
@@ -207,9 +226,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
             dict: Details of the scraped product (name, price, deal, shorturl)
         """
-        headers = {
-            "User-Agent": self.user_agent
-        }
+        headers = {"User-Agent": self.user_agent}
         details = {"name": "", "price": 0, "deal": True, "url": ""}
         _url = self.extract_url(url)
         if _url == "":
@@ -229,65 +246,108 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             else:
                 return None
         return details
-
-    def dayly_check(self, oneproduct=False, oneproduct_details=[]):
+    # in the end, this process should run in the background, but then the message box, or the progress box needs to be moves to the mainwindow
+    #@lox.thread(4)
+    def dayly_check(self, progress_callback, oneproduct=False, oneproduct_details=[]):
         """Checks periodically if the prices where fetched within the last 12 hours, else fetch all the prices. 
         
         Args:
             oneproduct (bool, optional): Set to true if only the selected Product shall be updated. Defaults to False.
             oneproduct_details (list, optional): List of Tuples for the productdetails, consists of the Link and the ID. Defaults to [].
         """
-        last_date = self.queryDB("SELECT Date FROM Timestamps WHERE Number = (SELECT MAX(Number) FROM Timestamps)")
+        checknow = False
+        last_date = self.queryDB(
+            "SELECT Date FROM Timestamps WHERE Number = (SELECT MAX(Number) FROM Timestamps)"
+        )
         now_date = datetime.datetime.now()
         # when no entry is existing, always set time difference greater than a day
         if len(last_date) > 0:
             # otherwise get the last timestamp entry and subtract it from the current time, gets the difference in days
             last_date = last_date[0][0]
-            last_date_time_obj = datetime.datetime.strptime(last_date, '%Y-%m-%d %H:%M:%S')
-            delta_time = (now_date - last_date_time_obj).seconds
+            last_date_time_obj = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+            delta_time = now_date - last_date_time_obj
+            if delta_time.days >= 1 or delta_time.seconds >= 43000:
+                checknow = True
         else:
-            delta_time = 100000
+            checknow = True
         # if the difference is greater then half a day, fetch all the prices.
-        if delta_time >= 43000 or oneproduct:
-            self.prodia = QProgressDialog("Check of the prices, please wait untill the process is finished.", None, 0, 100, self)
-            self.prodia.show()
-            self.prodia.setWindowTitle("Getting Todays Prices")
-            self.prodia.setValue(0)
-            qApp.processEvents()
+        if checknow or oneproduct:
+            print("STARTING GETTING PRICES!")
+            # self.prodia = QProgressDialog(
+            #     "Check of the prices, please wait untill the process is finished.", None, 0, 100, self
+            # )
+            # self.prodia.show()
+            # self.prodia.setWindowTitle("Getting Todays Prices")
+            # self.prodia.setValue(0)
+            # qApp.processEvents()
             cannot_write = []
             if oneproduct:
                 pricechecks = oneproduct_details
             else:
                 pricechecks = self.queryDB("SELECT Link, ID, Name FROM Tracklist WHERE Active = 1")
             for step, product in enumerate(pricechecks):
+                print(f"Getting {step+1}. Product")
                 productinfo = self.get_product_details(product[0])
                 if productinfo is not None:
-                    self.queryDB("INSERT OR IGNORE INTO Pricetracks(ID, Price, Date) VALUES(?,?,?)",(product[1], productinfo["price"], datetime.datetime.strftime(now_date, '%Y-%m-%d')))
+                    self.queryDB(
+                        "INSERT OR IGNORE INTO Pricetracks(ID, Price, Date) VALUES(?,?,?)",
+                        (product[1], productinfo["price"], datetime.datetime.strftime(now_date, "%Y-%m-%d")),
+                    )
                 else:
                     # generate a list of failed products
                     cannot_write.append(product[2])
-                self.prodia.setValue((step+1)/len(pricechecks)*100)
-                qApp.processEvents()
+                # self.prodia.setValue((step + 1) / len(pricechecks) * 100)
+                # qApp.processEvents()
             # at the end of the successfull process, enters the new timestamp
             if not oneproduct:
-                timestamp = now_date.strftime('%Y-%m-%d %H:%M:%S')
-                self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)",(timestamp,))
-            self.prodia.close()
+                timestamp = now_date.strftime("%Y-%m-%d %H:%M:%S")
+                self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)", (timestamp,))
+            # self.prodia.close()
             # if there were some problems inform the user
-            if len(cannot_write)>0:
-                errorstring = ', '.join(cannot_write)
-                self.dialogbox(f'At least for one product, it was not possible to get the price. The products are: {errorstring}. Please check those Links. In case all products failed, check your user-agent and internet connecton!', 'Error while fetching the prices')
+            print("DONE WITH PRICEGETTING!")
+            if len(cannot_write) > 0:
+                errorstring = ", ".join(cannot_write)
+                return errorstring
+            else:
+                return None
         # self.long_task()
+
+    def get_details_thread(self, oneproduct=False, oneproduct_details=[]):
+        # Pass the function to execute
+        worker = Worker(self.dayly_check, oneproduct=oneproduct, oneproduct_details=oneproduct_details)  # Any other args, kwargs are passed to the run function
+        worker.signals.result.connect(self.get_thread_output)
+        # worker.signals.finished.connect(self.thread_complete)
+        # worker.signals.progress.connect(self.progress_fn)
+        # Execute
+        self.threadpool.start(worker)
+
+    def get_thread_output(self, s):
+        if s is not None:
+            self.dialogbox(
+                f"At least for one product, it was not possible to get the price. The products are: {s}. Please check those Links. In case all products failed, check your user-agent and internet connecton!",
+                "Error while fetching the prices",
+            )
 
     def fetch_price_singleproduct(self):
         """Updates the Price for the selected product. """
         if self.LW_products.selectedItems():
             productlink = self.queryDB("SELECT Link FROM Tracklist WHERE ID = ?", (self.id,))[0][0]
-            self.dayly_check(True, [(productlink, self.id, "single product")])
+            # self.dayly_check(None, oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")])
+            self.get_details_thread(oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")])
         else:
-            self.dialogbox("No product was selected to get the new price from.", "No Product Selected", parent=self)
+            self.dialogbox(
+                "No product was selected to get the new price from.", "No Product Selected", parent=self
+            )
 
-    def dialogbox(self, textstring, windowtitle="Message", boxtype="standard", okstring="OK", cancelstring="Cancel", parent=None):
+    def dialogbox(
+        self,
+        textstring,
+        windowtitle="Message",
+        boxtype="standard",
+        okstring="OK",
+        cancelstring="Cancel",
+        parent=None,
+    ):
         """The default messagebox for the Maker. Uses a QMessageBox with OK-Button 
         
         Args:
@@ -305,7 +365,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         msgBox = QMessageBox(parent)
         if boxtype == "standard":
             msgBox.setStandardButtons(QMessageBox.Ok)
-            msgBox.setIcon(QMessageBox.Information) 
+            msgBox.setIcon(QMessageBox.Information)
         elif boxtype == "okcancel":
             msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
             buttoncancel = msgBox.button(QMessageBox.Cancel)
@@ -315,7 +375,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         buttonok.setText("{: ^12}".format(okstring))
         msgBox.setText(textstring)
         msgBox.setWindowTitle(windowtitle)
-        msgBox.setWindowIcon(QIcon('gui/pictures/dollar.png'))
+        msgBox.setWindowIcon(QIcon("gui/pictures/dollar.png"))
         msgBox.show()
         retval = msgBox.exec_()
         if boxtype == "okcancel":
@@ -339,7 +399,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.connDB()
         self.c.execute(sql, serachtuple)
 
-        if sql[0:6].lower() == 'select':
+        if sql[0:6].lower() == "select":
             result = self.c.fetchall()
             self.DB.close()
             return result
@@ -348,17 +408,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.DB.close()
 
     def call_user_agent(self):
-        text, ok = QInputDialog.getText(self, 'User-Agent', 'please enter your User-Agent:')
+        text, ok = QInputDialog.getText(self, "User-Agent", "please enter your User-Agent:")
         if ok:
             self.read_config(change=True, user_agent_change=text)
             self.dialogbox(f"Updating user agent: {text}", "User Agent Updated", parent=self)
-    
+
     def createDB(self):
         """Creates the tables for the DB if not already created. """
         self.connDB()
-        self.c.execute("CREATE TABLE IF NOT EXISTS Tracklist(ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, Name Text NOT NULL, Link TEXT NOT NULL, Shortlink TEXT NOT NULL, Active BOOL NOT NULL);")
-        self.c.execute("CREATE TABLE IF NOT EXISTS Pricetracks(Number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ID INTEGER NOT NULL, Price FLOAT(2) NOT NULL, Date DATETIME);")
-        self.c.execute("CREATE TABLE IF NOT EXISTS Timestamps(Number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, Date DATETIME);")
+        self.c.execute(
+            "CREATE TABLE IF NOT EXISTS Tracklist(ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, Name Text NOT NULL, Link TEXT NOT NULL, Shortlink TEXT NOT NULL, Active BOOL NOT NULL);"
+        )
+        self.c.execute(
+            "CREATE TABLE IF NOT EXISTS Pricetracks(Number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ID INTEGER NOT NULL, Price FLOAT(2) NOT NULL, Date DATETIME);"
+        )
+        self.c.execute(
+            "CREATE TABLE IF NOT EXISTS Timestamps(Number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, Date DATETIME);"
+        )
         # self.c.execute()
         self.DB.close()
 
@@ -367,20 +433,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         config.read(self.config_path)
         if change:
             config["properties"]["useragent"] = user_agent_change
-            with open(self.config_path, 'w') as configfile:
+            with open(self.config_path, "w") as configfile:
                 config.write(configfile)
         self.user_agent = config["properties"]["useragent"]
 
     def long_task(self):
-        self.prodia = QProgressDialog("Daily check of the prices, please wait till it's finished.", None, 0, 100, self)
+        self.prodia = QProgressDialog(
+            "Daily check of the prices, please wait till it's finished.", None, 0, 100, self
+        )
         self.prodia.show()
         qApp.processEvents()
         for x in range(0, 5):
-            self.prodia.setValue(x/5*100)
+            self.prodia.setValue(x / 5 * 100)
             qApp.processEvents()
             print(f"step: {x+1}")
             time.sleep(1)
         self.prodia.close()
+
 
 class GraphWindow(QDialog):
     """Opens up a window where the the top five useres (highes quantity) are shown.
@@ -389,6 +458,7 @@ class GraphWindow(QDialog):
         plotvalues (list): The x and y values for the plot as as list of lists
         plotname (str): The name for the prodcut
     """
+
     def __init__(self, parent, x=None, y=None, plotname=""):
         """ Generates the window and plots the diagram. """
         super(GraphWindow, self).__init__(parent)
@@ -396,12 +466,12 @@ class GraphWindow(QDialog):
         self.resize(1200, 800)
         self.setWindowTitle("Price development of {}".format(plotname))
         self.setWindowFlags(
-            Qt.Window |
-            Qt.CustomizeWindowHint |
-            Qt.WindowTitleHint |
-            Qt.WindowCloseButtonHint |
-            Qt.WindowStaysOnTopHint
-            )
+            Qt.Window
+            | Qt.CustomizeWindowHint
+            | Qt.WindowTitleHint
+            | Qt.WindowCloseButtonHint
+            | Qt.WindowStaysOnTopHint
+        )
         # self.setModal(True)
         self.ms = parent
 
@@ -409,7 +479,7 @@ class GraphWindow(QDialog):
         plt.rcParams["date.autoformatter.day"] = "%y/%m/%d"
         self.figure = plt.figure(figsize=(12, 8), dpi=128)
         # adds a button to go back
-        self.backbutton = QPushButton('< Back')
+        self.backbutton = QPushButton("< Back")
         # sets the minimum size and the fontsize
         self.backbutton.setMinimumSize(QSize(0, 50))
         font = QFont()
@@ -433,15 +503,84 @@ class GraphWindow(QDialog):
         # print(x, y)
         y_mean = np.mean(y)
         y_m = [y_mean for val in y]
-        checker1 = [0 if a>b else 1 for a,b in zip(y, y_m)]
-        checker2 = [0 if a<b else 1 for a,b in zip(y, y_m)]
-        ax.plot(x, y, '+-', linewidth=3, markersize=10)
-        ax.plot(x, y_m, linestyle="-.", c='k')
-        if len(x)>1:
-            ax.fill_between(x, y, y_m, color='g', alpha=0.2, where=checker1, interpolate=True)
-            ax.fill_between(x, y, y_m, color='r', alpha=0.2, where=checker2, interpolate=True)
+        checker1 = [0 if a > b else 1 for a, b in zip(y, y_m)]
+        checker2 = [0 if a < b else 1 for a, b in zip(y, y_m)]
+        ax.plot(x, y, "+-", linewidth=3, markersize=10)
+        ax.plot(x, y_m, linestyle="-.", c="k")
+        if len(x) > 1:
+            ax.fill_between(x, y, y_m, color="g", alpha=0.2, where=checker1, interpolate=True)
+            ax.fill_between(x, y, y_m, color="r", alpha=0.2, where=checker2, interpolate=True)
             ax.set_xlim(min(x), max(x))
-        ax.yaxis.grid(linestyle='--', color='k')
+        ax.yaxis.grid(linestyle="--", color="k")
         plt.tight_layout()
         # refresh canvas
         self.canvas.draw()
+
+class WorkerSignals(QObject):
+    """
+    Defines the signals available from a running worker thread.
+
+    Supported signals are:
+
+    finished
+        No data
+    
+    error
+        `tuple` (exctype, value, traceback.format_exc() )
+    
+    result
+        `object` data returned from processing, anything
+
+    progress
+        `int` indicating % progress 
+
+    """
+
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(int)
+
+class Worker(QRunnable):
+    """
+    Worker thread
+
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+    :param callback: The function callback to run on this worker thread. Supplied args and 
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to the callback function
+    :param kwargs: Keywords to pass to the callback function
+
+    """
+
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+
+        # Store constructor arguments (re-used for processing)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+        # Add the callback to our kwargs
+        self.kwargs["progress_callback"] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        """
+        Initialise the runner function with passed args, kwargs.
+        """
+
+        # Retrieve args/kwargs here; and fire processing using them
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)  # Return the result of the processing
+        finally:
+            self.signals.finished.emit()  # Done
