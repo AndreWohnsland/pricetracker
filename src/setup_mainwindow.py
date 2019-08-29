@@ -11,6 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.colors as mcolors
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -245,8 +247,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             else:
                 return None
         return details
+
     # in the end, this process should run in the background, but then the message box, or the progress box needs to be moves to the mainwindow
-    #@lox.thread(4)
+    # @lox.thread(4)
     def dayly_check(self, progress_callback, oneproduct=False, oneproduct_details=[]):
         """Checks periodically if the prices where fetched within the last 12 hours, else fetch all the prices. 
         
@@ -313,7 +316,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def get_details_thread(self, oneproduct=False, oneproduct_details=[]):
         # Pass the function to execute
-        worker = Worker(self.dayly_check, oneproduct=oneproduct, oneproduct_details=oneproduct_details)  # Any other args, kwargs are passed to the run function
+        worker = Worker(
+            self.dayly_check, oneproduct=oneproduct, oneproduct_details=oneproduct_details
+        )  # Any other args, kwargs are passed to the run function
         worker.signals.result.connect(self.get_thread_output)
         # worker.signals.finished.connect(self.thread_complete)
         # worker.signals.progress.connect(self.progress_fn)
@@ -332,7 +337,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.LW_products.selectedItems():
             productlink = self.queryDB("SELECT Link FROM Tracklist WHERE ID = ?", (self.id,))[0][0]
             # self.dayly_check(None, oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")])
-            self.get_details_thread(oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")])
+            self.get_details_thread(
+                oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")]
+            )
         else:
             self.dialogbox(
                 "No product was selected to get the new price from.", "No Product Selected", parent=self
@@ -501,6 +508,8 @@ class GraphWindow(QDialog):
         # generates the grap
         # print(x, y)
         y_mean = np.mean(y)
+        y_max = np.max(y)
+        y_min = np.min(y)
         y_m = [y_mean for val in y]
         checker1 = [0 if a > b else 1 for a, b in zip(y, y_m)]
         checker2 = [0 if a < b else 1 for a, b in zip(y, y_m)]
@@ -510,10 +519,23 @@ class GraphWindow(QDialog):
             ax.fill_between(x, y, y_m, color="g", alpha=0.2, where=checker1, interpolate=True)
             ax.fill_between(x, y, y_m, color="r", alpha=0.2, where=checker2, interpolate=True)
             ax.set_xlim(min(x), max(x))
+            # generates the legend elements and labels
+            legend_elements = [
+                Patch(facecolor="g", edgecolor="g", alpha=0.15),
+                Patch(facecolor="r", edgecolor="r", alpha=0.15),
+                Line2D([0], [0], ls="-.", color="k", lw=3),
+            ]
+            legend_labels = [
+                f"minimal value = {y_min} €",
+                f"maximal value = {y_max} €",
+                f"mean value = {y_mean:.2f} €",
+            ]
+            plt.legend(legend_elements, legend_labels)
         ax.yaxis.grid(linestyle="--", color="k")
         plt.tight_layout()
         # refresh canvas
         self.canvas.draw()
+
 
 class WorkerSignals(QObject):
     """
@@ -539,6 +561,7 @@ class WorkerSignals(QObject):
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
+
 
 class Worker(QRunnable):
     """
