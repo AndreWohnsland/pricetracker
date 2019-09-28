@@ -215,6 +215,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return False
         return True
 
+    # the concept of extract_url and get_product_details was found on:
+    # https://medium.com/@deeprajpradhan/tutorial-amazon-price-tracker-using-python-and-mongodb-part-1-aece6347ec63
+    # and adapted to be more flexible and suit the case of this programm
     def extract_url(self, url):
         """Creates a short version of the URL to work with. Also returns None if its not a valid adress.
         
@@ -632,6 +635,9 @@ class GraphWindow(QDialog):
         self.canvas.draw()
 
 
+# the concept of multitreading is taken out of:
+# Create Simple GUI Applications Book from Martin Fitzpatrick
+# and was adapted to my problem accordingly
 class WorkerSignals(QObject):
     """
     Defines the signals available from a running worker thread.

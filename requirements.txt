@@ -1,0 +1,5 @@
+requests
+bs4
+html5lib
+matplotlib
+PyQt5
