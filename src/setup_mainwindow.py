@@ -65,13 +65,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.load_listentries()
 
     def enter_data(self, change=False):
-        """Checks and enters the data into the db. """
+        """Checks and enters the data into the db.
+        
+        Args:
+            change (bool, optional): Checker if the data is new or existing shall be changed. Defaults to False.
+        """
         # checks all LE
-        validchecker = self.validcheck([self.LE_name, self.LE_url], ["product name", "product URL"])
+        validchecker = self.validcheck(
+            [self.LE_name, self.LE_url], ["product name", "product URL"]
+        )
         # if change without a product was clicked
         if validchecker:
             if not self.LW_products.selectedItems() and change:
-                self.dialogbox("No product was selected to be changed!", "Missing Product", parent=self)
+                self.dialogbox(
+                    "No product was selected to be changed!",
+                    "Missing Product",
+                    parent=self,
+                )
                 validchecker = False
         # checks if this link already exists
         if validchecker and not change:
@@ -80,7 +90,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             )[0][0]
             if existing_entry:
                 self.dialogbox(
-                    "This product Link is already existing in the database!", "Existing Product", parent=self
+                    "This product Link is already existing in the database!",
+                    "Existing Product",
+                    parent=self,
                 )
                 validchecker = False
         if validchecker:
@@ -90,31 +102,44 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if self.CHB_track.isChecked():
                 trackproduct = 1
             # checks if the link is an amzon link
-            shortlink = self.extract_url(productlink)
+            land, shortlink = self.extract_url(productlink)
             if shortlink is not None and change:
                 self.queryDB(
-                    "UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ? WHERE ID = ?",
-                    (productname, productlink, shortlink, trackproduct, self.id),
+                    "UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ?, Land = ? WHERE ID = ?",
+                    (productname, productlink, shortlink, trackproduct, self.id, land),
                 )
                 self.LW_products.currentItem().setText(productname)
                 self.clear_entries()
                 self.dialogbox(
-                    "Data was updagted into the Database successfully", "Data Updated", parent=self
+                    "Data was updagted into the Database successfully",
+                    "Data Updated",
+                    parent=self,
                 )
             elif shortlink is not None:
                 # enters the data into the DB
                 self.queryDB(
-                    "INSERT OR IGNORE INTO Tracklist(Name, Link, Shortlink, Active) VALUES(?,?,?,?)",
-                    (productname, productlink, shortlink, trackproduct),
+                    "INSERT OR IGNORE INTO Tracklist(Name, Link, Shortlink, Active, Land) VALUES(?,?,?,?,?)",
+                    (productname, productlink, shortlink, trackproduct, land),
                 )
-                new_id = self.queryDB("SELECT ID FROM Tracklist WHERE Name = ?", (productname,))[0][0]
+                # also adds the item into the list widget and sets its internal value to the id in case the name change somehow
+                new_id = self.queryDB(
+                    "SELECT ID FROM Tracklist WHERE Name = ?", (productname,)
+                )[0][0]
                 item = QListWidgetItem(str(productname), self.LW_products)
                 item.setData(Qt.UserRole, new_id)
                 self.LW_products.sortItems()
                 self.clear_entries()
-                self.dialogbox("Data was entered into the Database successfully", "Data Entered", parent=self)
+                self.dialogbox(
+                    "Data was entered into the Database successfully",
+                    "Data Entered",
+                    parent=self,
+                )
             else:
-                self.dialogbox("The given Link is no Amazon Link!", "Invalid Link given!", parent=self)
+                self.dialogbox(
+                    "The given Link is no Amazon Link!",
+                    "Invalid Link given!",
+                    parent=self,
+                )
 
     def clear_entries(self):
         """Clears the entry labels. """
@@ -135,7 +160,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def display_lw_item(self):
         self.id = self.LW_products.currentItem().data(Qt.UserRole)
-        entries = self.queryDB("SELECT Name, Link, Active FROM Tracklist WHERE ID = ?", (self.id,))[0]
+        entries = self.queryDB(
+            "SELECT Name, Link, Active FROM Tracklist WHERE ID = ?", (self.id,)
+        )[0]
         self.LE_name.setText(entries[0])
         self.LE_url.setText(entries[1])
         if not entries[2]:
@@ -147,18 +174,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """ Gets all the prices for the selected Item. """
         if self.id:
             # selects the price and the date, appends both to a seperate list to plot later
-            pricetable = self.queryDB("SELECT Price, Date FROM Pricetracks WHERE ID = ?", (self.id,))
+            pricetable = self.queryDB(
+                "SELECT Price, Date FROM Pricetracks WHERE ID = ?", (self.id,)
+            )
             x_values = []
             y_values = []
             for valuepair in pricetable:
                 x_values.append(datetime.datetime.strptime(valuepair[1], "%Y-%m-%d"))
                 y_values.append(valuepair[0])
             # Calls a new window, which shows the graph
-            productname = self.queryDB("SELECT Name From Tracklist WHERE ID = ?", (self.id,))[0][0]
-            self.gw = GraphWindow(self, x_values, y_values, productname)
+            productname, productland = self.queryDB(
+                "SELECT Name, Land From Tracklist WHERE ID = ?", (self.id,)
+            )[0]
+            # print(productname, productland)
+            self.gw = GraphWindow(self, x_values, y_values, productname, landcode=productland)
             self.gw.show()
         else:
-            self.dialogbox("Please select a product to plot the price over the time.", "No Product Selected")
+            self.dialogbox(
+                "Please select a product to plot the price over the time.",
+                "No Product Selected",
+            )
 
     def validcheck(self, lineedits, missingvals=[""]):
         """Checks if the input got a string or is empty. If empty, informs about the user
@@ -173,7 +208,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for lineedit, missingval in zip(lineedits, missingvals):
             if lineedit.text() == "":
                 self.dialogbox(
-                    f"The value for {missingval} is missing!", windowtitle="Missing value!", parent=self
+                    f"The value for {missingval} is missing!",
+                    windowtitle="Missing value!",
+                    parent=self,
                 )
                 return False
         return True
@@ -185,25 +222,42 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             url (str): The long version of the URL to shorten
         
         Returns:
-            str: The short version of the URL
+            tuple: The land code and the short version of the URL in the format (land, url)
         """
+        land = ""
         if url.find("www.amazon.de") != -1:
             index = url.find("/dp/")
             if index != -1:
                 index2 = index + 14
                 url = "https://www.amazon.de" + url[index:index2]
+                land = "de"
             else:
                 index = url.find("/gp/")
                 if index != -1:
                     index2 = index + 22
                     url = "https://www.amazon.de" + url[index:index2]
+                    land = "de"
                 else:
                     url = None
+        elif url.find("www.amazon.com") != -1:
+            index = url.find("/dp/")
+            if index != -1:
+                index2 = index + 15
+                url = "https://www.amazon.com" + url[index:index2]
+                land = "com"
+            else:
+                index = url.find("/gp/")
+                if index != -1:
+                    index2 = index + 23
+                    url = "https://www.amazon.com" + url[index:index2]
+                    land = "com"
+                else:
+                    url = None 
         else:
             url = None
-        return url
+        return (land, url)
 
-    def get_converted_price(self, price):
+    def get_converted_price(self, price, landcode="de"):
         """Converts the price argument to a clean number
         
         Args:
@@ -212,8 +266,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
             float: converted price
         """
-        price = price.replace(".", "")
-        price = price.replace(",", ".")
+        sep = {
+            "de": ".",
+            "com": ","
+        }
+        decimal = {
+            "de": ",",
+            "com": "."
+        }
+
+        price = price.replace(sep[landcode], "")
+        price = price.replace(decimal[landcode], ".")
         converted_price = float(re.sub(r"[^\d.]", "", price))
 
         return converted_price
@@ -228,8 +291,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             dict: Details of the scraped product (name, price, deal, shorturl)
         """
         headers = {"User-Agent": self.user_agent}
-        details = {"name": "", "price": 0, "deal": True, "url": ""}
-        _url = self.extract_url(url)
+        details = {"name": "", "price": 0, "deal": True, "url": "", "land": ""}
+        land, _url = self.extract_url(url)
+        # print(land)
         if _url == "":
             details = None
         else:
@@ -242,7 +306,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 details["deal"] = False
             if title is not None and price is not None:
                 details["name"] = title.get_text().strip()
-                details["price"] = self.get_converted_price(price.get_text())
+                # print(price.get_text())
+                details["price"] = self.get_converted_price(price.get_text(), landcode=land)
                 details["url"] = _url
             else:
                 return None
@@ -266,7 +331,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if len(last_date) > 0:
             # otherwise get the last timestamp entry and subtract it from the current time, gets the difference in days
             last_date = last_date[0][0]
-            last_date_time_obj = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+            last_date_time_obj = datetime.datetime.strptime(
+                last_date, "%Y-%m-%d %H:%M:%S"
+            )
             delta_time = now_date - last_date_time_obj
             if delta_time.days >= 1 or delta_time.seconds >= 43000:
                 checknow = True
@@ -286,14 +353,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if oneproduct:
                 pricechecks = oneproduct_details
             else:
-                pricechecks = self.queryDB("SELECT Link, ID, Name FROM Tracklist WHERE Active = 1")
+                pricechecks = self.queryDB(
+                    "SELECT Link, ID, Name FROM Tracklist WHERE Active = 1"
+                )
             for step, product in enumerate(pricechecks):
                 print(f"Getting {step+1}. Product")
                 productinfo = self.get_product_details(product[0])
                 if productinfo is not None:
                     self.queryDB(
                         "INSERT OR IGNORE INTO Pricetracks(ID, Price, Date) VALUES(?,?,?)",
-                        (product[1], productinfo["price"], datetime.datetime.strftime(now_date, "%Y-%m-%d")),
+                        (
+                            product[1],
+                            productinfo["price"],
+                            datetime.datetime.strftime(now_date, "%Y-%m-%d"),
+                        ),
                     )
                 else:
                     # generate a list of failed products
@@ -303,7 +376,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # at the end of the successfull process, enters the new timestamp
             if not oneproduct:
                 timestamp = now_date.strftime("%Y-%m-%d %H:%M:%S")
-                self.queryDB("INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)", (timestamp,))
+                self.queryDB(
+                    "INSERT OR IGNORE INTO Timestamps(Date) VALUES(?)", (timestamp,)
+                )
             # self.prodia.close()
             # if there were some problems inform the user
             print("DONE WITH PRICEGETTING!")
@@ -312,12 +387,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return errorstring
             else:
                 return None
-        # self.long_task()
 
     def get_details_thread(self, oneproduct=False, oneproduct_details=[]):
+        """Own thread start function to get the details of each tracked product
+        
+        Args:
+            oneproduct (bool, optional): If only a single product is checked or the whole DB. Defaults to False.
+            oneproduct_details (list, optional): Lists of products to check. Defaults to [].
+        """
         # Pass the function to execute
         worker = Worker(
-            self.dayly_check, oneproduct=oneproduct, oneproduct_details=oneproduct_details
+            self.dayly_check,
+            oneproduct=oneproduct,
+            oneproduct_details=oneproduct_details,
         )  # Any other args, kwargs are passed to the run function
         worker.signals.result.connect(self.get_thread_output)
         # worker.signals.finished.connect(self.thread_complete)
@@ -326,6 +408,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.threadpool.start(worker)
 
     def get_thread_output(self, s):
+        """Output function at end of the thread.
+        
+        Args:
+            s (string): Summary of all failed products
+        """
         if s is not None:
             self.dialogbox(
                 f"At least for one product, it was not possible to get the price. The products are: {s}. Please check those Links. In case all products failed, check your user-agent and internet connecton!",
@@ -335,14 +422,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def fetch_price_singleproduct(self):
         """Updates the Price for the selected product. """
         if self.LW_products.selectedItems():
-            productlink = self.queryDB("SELECT Link FROM Tracklist WHERE ID = ?", (self.id,))[0][0]
+            productlink = self.queryDB(
+                "SELECT Link FROM Tracklist WHERE ID = ?", (self.id,)
+            )[0][0]
             # self.dayly_check(None, oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")])
             self.get_details_thread(
-                oneproduct=True, oneproduct_details=[(productlink, self.id, "single product")]
+                oneproduct=True,
+                oneproduct_details=[(productlink, self.id, "single product")],
             )
         else:
             self.dialogbox(
-                "No product was selected to get the new price from.", "No Product Selected", parent=self
+                "No product was selected to get the new price from.",
+                "No Product Selected",
+                parent=self,
             )
 
     def dialogbox(
@@ -414,10 +506,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.DB.close()
 
     def call_user_agent(self):
-        text, ok = QInputDialog.getText(self, "User-Agent", "please enter your User-Agent:")
+        text, ok = QInputDialog.getText(
+            self, "User-Agent", "please enter your User-Agent:"
+        )
         if ok:
             self.read_config(change=True, user_agent_change=text)
-            self.dialogbox(f"Updating user agent: {text}", "User Agent Updated", parent=self)
+            self.dialogbox(
+                f"Updating user agent: {text}", "User Agent Updated", parent=self
+            )
 
     def createDB(self):
         """Creates the tables for the DB if not already created. """
@@ -443,19 +539,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 config.write(configfile)
         self.user_agent = config["properties"]["useragent"]
 
-    def long_task(self):
-        self.prodia = QProgressDialog(
-            "Daily check of the prices, please wait till it's finished.", None, 0, 100, self
-        )
-        self.prodia.show()
-        qApp.processEvents()
-        for x in range(0, 5):
-            self.prodia.setValue(x / 5 * 100)
-            qApp.processEvents()
-            print(f"step: {x+1}")
-            time.sleep(1)
-        self.prodia.close()
-
 
 class GraphWindow(QDialog):
     """Opens up a window where the the top five useres (highes quantity) are shown.
@@ -465,7 +548,7 @@ class GraphWindow(QDialog):
         plotname (str): The name for the prodcut
     """
 
-    def __init__(self, parent, x=None, y=None, plotname=""):
+    def __init__(self, parent, x=None, y=None, plotname="", landcode="de"):
         """ Generates the window and plots the diagram. """
         super(GraphWindow, self).__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -480,6 +563,14 @@ class GraphWindow(QDialog):
         )
         # self.setModal(True)
         self.ms = parent
+
+        # initialize the different currency of the lands
+        currency_code = {
+            "de": "€",
+            "com": "$",
+        }
+
+        self.currency = currency_code[landcode]
 
         # a figure instance to plot on
         plt.rcParams["date.autoformatter.day"] = "%y/%m/%d"
@@ -516,8 +607,12 @@ class GraphWindow(QDialog):
         ax.plot(x, y, "+-", linewidth=3, markersize=10)
         ax.plot(x, y_m, linestyle="-.", c="k")
         if len(x) > 1:
-            ax.fill_between(x, y, y_m, color="g", alpha=0.2, where=checker1, interpolate=True)
-            ax.fill_between(x, y, y_m, color="r", alpha=0.2, where=checker2, interpolate=True)
+            ax.fill_between(
+                x, y, y_m, color="g", alpha=0.2, where=checker1, interpolate=True
+            )
+            ax.fill_between(
+                x, y, y_m, color="r", alpha=0.2, where=checker2, interpolate=True
+            )
             ax.set_xlim(min(x), max(x))
             # generates the legend elements and labels
             legend_elements = [
@@ -526,9 +621,9 @@ class GraphWindow(QDialog):
                 Line2D([0], [0], ls="-.", color="k", lw=3),
             ]
             legend_labels = [
-                f"minimal value = {y_min} €",
-                f"maximal value = {y_max} €",
-                f"mean value = {y_mean:.2f} €",
+                f"minimal value = {y_min} {self.currency}",
+                f"maximal value = {y_max} {self.currency}",
+                f"mean value = {y_mean:.2f} {self.currency}",
             ]
             plt.legend(legend_elements, legend_labels)
         ax.yaxis.grid(linestyle="--", color="k")
