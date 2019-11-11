@@ -106,7 +106,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if shortlink is not None and change:
                 self.queryDB(
                     "UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ?, Land = ? WHERE ID = ?",
-                    (productname, productlink, shortlink, trackproduct, self.id, land),
+                    (productname, productlink, shortlink, trackproduct, land, self.id),
                 )
                 self.LW_products.currentItem().setText(productname)
                 self.clear_entries()
