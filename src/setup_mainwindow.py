@@ -305,6 +305,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             title = soup.find(id="productTitle")
             price = soup.find(id="priceblock_dealprice")
             if price is None:
+                price = soup.find(id="priceblock_saleprice")
+            if price is None:
                 price = soup.find(id="priceblock_ourprice")
                 details["deal"] = False
             if title is not None and price is not None:
