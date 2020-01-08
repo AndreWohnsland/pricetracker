@@ -103,6 +103,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 trackproduct = 1
             # checks if the link is an amzon link
             land, shortlink = self.extract_url(productlink)
+            # print(land, shortlink)
             if shortlink is not None and change:
                 self.queryDB(
                     "UPDATE OR IGNORE Tracklist SET Name = ?, Link = ?, Shortlink = ?, Active = ?, Land = ? WHERE ID = ?",
