@@ -13,6 +13,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from matplotlib import ticker as mtick
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -632,6 +633,11 @@ class GraphWindow(QDialog):
                 f"mean value = {y_mean:.2f} {self.currency}",
             ]
             plt.legend(legend_elements, legend_labels)
+        if len(x) >= 9:
+            mindate = min(x)
+            maxdate = max(x)
+            print(maxdate-mindate)
+            ax.xaxis.set_major_locator(mtick.LinearLocator(9))
         ax.yaxis.grid(linestyle="--", color="k")
         plt.tight_layout()
         # refresh canvas
